@@ -75,7 +75,7 @@ export default function Enroll() {
   };
 
   const captureComplete = () => {
-    const kData = keystroke.extractVector();
+    const kData = keystroke.extractVector(PHRASE);
     const mData = mouse.extractVector();
 
     if (!kData) {
@@ -122,6 +122,20 @@ export default function Enroll() {
         return vals.reduce((a, b) => a + b, 0) / vals.length;
       });
     };
+    
+    // Helper: Z-score normalize an array
+    const zNormalize = (arr) => {
+      if (!arr || arr.length < 2) return arr || [];
+      const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+      const variance = arr.reduce((acc, v) => acc + (v - mean) ** 2, 0) / arr.length;
+      const std = Math.sqrt(variance);
+      if (std === 0) return arr.map(() => 0);
+      return arr.map(v => (v - mean) / std);
+    };
+    
+    const holdTimes = avgArr('holdTimes');
+    const flightTimes = avgArr('flightTimes');
+    
     return {
       avgHoldTime:    scalar('avgHoldTime'),
       stdHoldTime:    scalar('stdHoldTime'),
@@ -130,8 +144,10 @@ export default function Enroll() {
       totalDuration:  scalar('totalDuration'),
       rhythmVariance: scalar('rhythmVariance'),
       errorRate:      scalar('errorRate'),
-      holdTimes:      avgArr('holdTimes'),
-      flightTimes:    avgArr('flightTimes'),
+      holdTimes:      holdTimes,
+      flightTimes:    flightTimes,
+      holdTimesZ:     zNormalize(holdTimes),
+      flightTimesZ:   zNormalize(flightTimes),
     };
   };
 

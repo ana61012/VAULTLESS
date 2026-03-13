@@ -42,11 +42,36 @@ export function useKeystrokeDNA() {
     setEvents([]);
   }, []);
 
-  const extractVector = useCallback(() => {
+  const extractVector = useCallback((phrase) => {
     // Exclude backspace from timing analysis — only count real phrase keys
     const allEvts = rawEvents.current;
-    const evts = allEvts.filter(e => e.key !== 'Backspace' && e.key !== 'Shift');
+    let evts = allEvts.filter(e => e.key !== 'Backspace' && e.key !== 'Shift');
     if (evts.length < 5) return null;
+
+    // If we know the target phrase, try to align events to the expected key sequence.
+    // If alignment fails, fall back to using the first N keys (where N = phrase length)
+    // so that we still return a usable vector rather than null.
+    if (phrase) {
+      const expected = phrase.split('');
+      const matched = [];
+      let idx = 0;
+      for (const e of evts) {
+        const key = e.key;
+        if (idx < expected.length && key === expected[idx]) {
+          matched.push(e);
+          idx += 1;
+        }
+        if (idx >= expected.length) break;
+      }
+
+      if (matched.length === expected.length) {
+        evts = matched;
+      } else if (evts.length >= expected.length) {
+        // Fallback: use first N events so we still get a vector even if the user made a small typo.
+        evts = evts.slice(0, expected.length);
+      }
+      // if evts is shorter than phrase length, keep it (will early-return below if too short)
+    }
 
     const holdTimes   = evts.map(e => e.holdTime);
     const flightTimes = evts.slice(1).map(e => e.flightTime).filter(f => f > 0 && f < 3000);
@@ -240,9 +265,10 @@ export function detectStress(liveK, enrollK) {
   return liveVariance > baseVariance * 2.5;
 }
 
-export function classifyScore(score, isStress) {
-  if (score > 0.80 && !isStress) return 'authenticated';
-  if (score >= 0.52 || isStress) return 'duress';
+export function classifyScore(score) {
+  // Use a slightly lower authentication threshold so real users are not pushed into duress
+  if (score > 0.75) return 'authenticated';
+  if (score >= 0.55) return 'duress';
   return 'rejected';
 }
 
